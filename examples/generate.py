@@ -68,7 +68,17 @@ def main():
     with open("logprobs.json", "rb") as f:
         logprobs_list = orjson.loads(f.read())
 
-    rc = generate_text_from_logprobs(logprobs_list, temperature=0.0)
+    rc = generate_text_from_logprobs(logprobs_list, temperature=1.2)
+
+    try:
+        where = rc.index("```")
+        rc = "# " + rc[where + 3 :]
+        where = rc.index("```")
+        rc = rc[:where]
+
+    except ValueError as e:
+        rc = "# ERROR: " + str(e) + "\n\n# END OF ERROR"
+
     print(rc)
 
 
