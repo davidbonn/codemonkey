@@ -14,7 +14,7 @@ both int and float constants are allowed.
 The following operators, in order of precedence (highest to lowest) are available:
 * unary minus (-)
 * exponentiation (**)
-* integer division (//), division(/), or multiplication (*)
+* integer division (//), modulo (%), division(/), or multiplication (*)
 * addition (+), subtraction (-)
 * comparisons (<, <=,>, >=)
 * equality comparisons (==, !=)
@@ -23,3 +23,6 @@ The following operators, in order of precedence (highest to lowest) are availabl
 * logical or (||)
 
 The comparison and logical operators will return a value of 0 when false and 1 when true.
+
+The __call__() method should raise SyntaxError when there is a syntax error.
+The __call__() method should raise ZeroDivisionError when division by zero is attempted.
