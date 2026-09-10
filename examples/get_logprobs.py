@@ -14,7 +14,7 @@ def instructions():
 def query():
     client = ollama.Client(host="http://goode:11434",)
     response = client.chat(
-        model="qwen2.5-coder:14b",
+        model="gpt-oss-fixed",
         messages=[dict(role="user", content=instructions(),)],
         logprobs=True,
         top_logprobs=20,
