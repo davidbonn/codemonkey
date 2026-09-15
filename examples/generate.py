@@ -1,7 +1,12 @@
+
+import argparse
 import math
 import random
+import subprocess
 
 import orjson
+
+from db import DB
 
 
 def generate_text_from_logprobs(logprobs_list: list, temperature: float = 1.0) -> str:
@@ -64,22 +69,84 @@ def generate_text_from_logprobs(logprobs_list: list, temperature: float = 1.0) -
     return "".join(generated_tokens)
 
 
-def main():
-    with open("logprobs.json", "rb") as f:
-        logprobs_list = orjson.loads(f.read())
-
-    rc = generate_text_from_logprobs(logprobs_list, temperature=1.2)
-
+def grab_code_block(text: str) -> str:
     try:
-        where = rc.index("```")
-        rc = "# " + rc[where + 3 :]
+        where = text.index("```")
+        rc = "# " + text[where + 3 :]
         where = rc.index("```")
         rc = rc[:where]
 
     except ValueError as e:
-        rc = "# ERROR: " + str(e) + "\n\n# END OF ERROR"
+        rc = None
 
-    print(rc)
+    return rc
+
+
+def run_test(args, code: str, failed) -> bool:
+    if code is None:
+        return False
+
+    if code in failed:
+        return False
+
+    with open(args.tester, "w") as f:
+        f.write(code)
+
+    rc = subprocess.run(["uv", "run", "test_calc.py"], capture_output=True, check=False)
+
+    if rc.returncode == 0:
+        return True
+    else:
+        print(f"Test failed: {rc.stderr.decode()}")
+        failed[code] = True
+        return False
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("logprobs_file", default="./logprobs.json", type=str, help="Path to the logprobs.json file")
+    ap.add_argument("--tester", default="calc.py", type=str, help="Path to the test script to run")
+    ap.add_argument("--count", default=1, type=int, help="Max number of times to run the test script")
+    ap.add_argument("--label", default="test", type=str)
+    ap.add_argument("--db", default="db.sqlite3", type=str, help="Path to the database file")
+    ap.add_argument("--temperature", default=None, type=float, help="Temperature for sampling")
+    ap.add_argument("--verbose", default=False, action="store_true", help="Print debug messages")
+    args = ap.parse_args()
+
+    if args.temperature is None:
+        args.temperature = random.uniform(0.0, 2.0)
+
+    with open(args.logprobs_file, "rb") as f:
+        logprobs_list = orjson.loads(f.read())
+
+    if args.verbose:
+        print(f"Temperature: {args.temperature}")
+        print(f"Logprobs: {len(logprobs_list)}")
+        print(f"Count: {args.count}")
+        print(f"Label: {args.label}")
+
+    failed = dict()
+
+    success = False
+    db = DB(args.db)
+    with db:
+        for i in range(args.count):
+            if args.verbose:
+                print(f"Running test {i+1} of {args.count}")
+
+            rc = generate_text_from_logprobs(logprobs_list, temperature=args.temperature)
+            rc = grab_code_block(rc)
+
+            if run_test(args, rc, failed):
+                print(f"Test passed at #{i}")
+                db.note_success(args.label, rc, args.temperature, i+1, args.count)
+                success = True
+                break
+
+        if not success:
+            if args.verbose:
+                print("No successful test runs, logging failure to database.")
+            db.note_failure(args.label, args.temperature, args.count)
 
 
 if __name__ == "__main__":
